@@ -20,12 +20,14 @@ no FPU use, no Blitz runtime, runs on any 68000+ with Kickstart 2.0+.
 - **Status line** — interface Up/Down and current IP, refreshed every 15 s
   and after every action. Maintains `ENV:RoadshowOnline` (`Online`/`Offline`)
   like Roadie did, for OS 3.2 custom title bars.
-- **Offline / Online** — `ConfigureNetInterface <iface> OFFLINE` /
-  `AddNetInterface` + `ConfigureNetInterface ONLINE UP`. Deliberately *not*
-  `NetShutdown`: a full stack teardown blocks on every program holding a
-  socket open, and Roadshow then defers the teardown to fire asynchronously
-  later — a reliable way to crash a busy machine. Interface-offline stops
-  traffic without ripping the stack out from under anything.
+- **Offline / Online** — `RemoveNetInterface <iface> FORCE` /
+  `AddNetInterface DEVS:NetInterfaces/<iface>`, the pair verified to
+  round-trip on hardware. Deliberately *not* `NetShutdown` (a full stack
+  teardown blocks on every program holding a socket, and Roadshow then defers
+  it to fire asynchronously later — a reliable way to crash a busy machine),
+  and not `ConfigureNetInterface ONLINE/OFFLINE` (an interface taken OFFLINE
+  could not be revived by ONLINE UP on any machine tested). Remove/Add keeps
+  the stack up and re-runs the interface's own config file, like the boot path.
 - **Status button** — full `ShowNetStatus` dump into the scrolling list.
 - **Ping / Trace** — `ping -c 4` / `traceroute` against the Target host
   (default 8.8.8.8). Commands run **asynchronously**: the GUI never freezes,
