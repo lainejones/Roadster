@@ -1,10 +1,10 @@
 /*
  * Roadster - a native Roadshow on/off switch + status panel (Commodity)
  *
- * Replaces Roadie (AmiBlitz3) which gurus on the A530's 68EC030 whenever the
- * data cache is enabled (TRAP #11 / spontaneous reset - see the daynaport
- * project notes, 2026-08-22). Plain C + GadTools, no FPU, no Blitz runtime,
- * runs on any 68000+ with OS 2.0+.
+ * Fills the same role as Roadie (which inspired it); written from scratch
+ * after chasing crashes on this machine's 68EC030 that turned out to be
+ * data-cache related (see the daynaport project notes, 2026-08-22).
+ * Plain C + GadTools, runs on any 68000+ with OS 2.0+.
  *
  *  +--------------------------------------------------------------+
  *  | Status: ONLINE   IP 192.168.50.36                            |

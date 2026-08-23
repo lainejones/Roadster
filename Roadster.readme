@@ -8,12 +8,12 @@ Architecture: m68k-amigaos >= 2.0.4
 
 Roadster is a small native Commodity that switches a Roadshow network
 interface on and off, with a live status readout and Ping / TraceRoute
-built in. Written in plain C + GadTools: no FPU use, no Blitz runtime,
-runs on anything from a 68000 up.
+built in. Written in plain C + GadTools; runs on anything from a 68000
+up.
 
-It was written to replace Roadie on machines where Roadie's AmiBlitz3
-runtime is unstable (on a GVP A530's 68EC030 it crashes whenever the CPU
-data cache is enabled - the boot default).
+It fills the same role as Graham Thomson's Roadie, which inspired it -
+Roadster started life chasing crashes on one particular accelerator
+setup here and grew into a full replacement.
 
 FEATURES
 

@@ -3,11 +3,11 @@
 A native AmigaOS Commodity that switches a Roadshow TCP/IP interface on and
 off, with a live status readout and Ping / TraceRoute built in.
 
-Written to replace [Roadie](http://aminet.net/package/comm/net/Roadie) on
-machines where its AmiBlitz3 runtime is unstable — on a GVP A530 (68EC030,
-no FPU) Roadie gurus with `#8000002B` or hard-resets whenever the CPU data
-cache is enabled, which is the boot default. Roadster is plain C + GadTools:
-no FPU use, no Blitz runtime, runs on any 68000+ with Kickstart 2.0+.
+It fills the same role as Graham Thomson's
+[Roadie](http://aminet.net/package/comm/net/Roadie), which inspired it.
+Roadster is written from scratch in plain C + GadTools and runs on any
+68000+ with Kickstart 2.0+ — it started life chasing crashes on one
+particular accelerator setup here, and grew into a full replacement.
 
 ![window](docs/window.png)
 
