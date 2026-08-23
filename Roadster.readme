@@ -1,0 +1,46 @@
+Short:        Roadshow on/off switch + status panel
+Author:       Laine Jones (with Claude)
+Uploader:     laine jones gmail com
+Type:         comm/net
+Version:      1.1
+Requires:     Kickstart 2.0+; Roadshow TCP/IP stack
+Architecture: m68k-amigaos >= 2.0.4
+
+Roadster is a small native Commodity that switches a Roadshow network
+interface on and off, with a live status readout and Ping / TraceRoute
+built in. Written in plain C + GadTools: no FPU use, no Blitz runtime,
+runs on anything from a 68000 up.
+
+It was written to replace Roadie on machines where Roadie's AmiBlitz3
+runtime is unstable (on a GVP A530's 68EC030 it crashes whenever the CPU
+data cache is enabled - the boot default).
+
+FEATURES
+
+- Status line: interface Up/Down and current IP, auto-refreshed.
+  Maintains ENV:RoadshowOnline (Online/Offline) for OS 3.2 title bars.
+- Offline / Online: RemoveNetInterface FORCE / AddNetInterface - the
+  pair that actually round-trips on hardware. Deliberately NOT
+  NetShutdown (defers and destabilises a busy machine) and not
+  ConfigureNetInterface ONLINE (cannot revive an OFFLINE'd interface).
+- Status button: full ShowNetStatus dump into a scrolling list.
+- Ping / Trace: ping -c 4 / traceroute against the Target host.
+  Commands run asynchronously - the GUI never freezes; a watchdog
+  recovers the buttons if a command never returns.
+- Commodity: shows in Exchange, hotkey ctrl alt r, close gadget hides.
+- ARexx port "ROADSTER": ONLINE / OFFLINE / SHOW / HIDE / STATUS
+  (returns the status line as the result string) / QUIT.
+  rc 5 = busy, rc 10 = unknown command. Needs RexxMast running.
+
+INSTALL
+
+Copy the drawer anywhere (SYS:Roadster is typical) and double-click.
+The interface name is auto-detected from DEVS:NetInterfaces/ - override
+with an IFACE=<name> tooltype or CLI argument if you have several.
+
+Verified on: A500 (GVP A530 + BlueSCSI DaynaPORT WiFi), A2000 (X-Surf),
+A4000 (ZZ9000), CD32 (SLIP). On the ZZ9000 the driver itself does not
+survive an interface re-add cleanly - use Status/Ping/Trace there and
+leave the toggle alone.
+
+Source: https://github.com/lainejones/Roadster
