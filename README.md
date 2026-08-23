@@ -11,6 +11,10 @@ no FPU use, no Blitz runtime, runs on any 68000+ with Kickstart 2.0+.
 
 ![window](docs/window.png)
 
+*(live on the Amiga 500 it was written for; icon below)*
+
+![icon](docs/icon.png)
+
 ## What it does
 
 - **Status line** — interface Up/Down and current IP, refreshed every 15 s
