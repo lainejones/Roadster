@@ -230,6 +230,16 @@ static void detectIface(struct App *a)
     fib = (struct FileInfoBlock *)AllocVec(sizeof(*fib), MEMF_CLEAR | MEMF_PUBLIC);
     if (fib && Examine(lk, fib)) {
         while (ExNext(lk, fib)) {
+            int len = (int)strlen(fib->fib_FileName);
+            /* skip icon files: an "X-Surf.info" next to "X-Surf" is NOT an
+             * interface, and ExNext order is filesystem-dependent */
+            if (len > 5) {
+                const char *e = fib->fib_FileName + len - 5;
+                if ((e[0]=='.') &&
+                    (e[1]=='i'||e[1]=='I') && (e[2]=='n'||e[2]=='N') &&
+                    (e[3]=='f'||e[3]=='F') && (e[4]=='o'||e[4]=='O'))
+                    continue;
+            }
             if (fib->fib_DirEntryType < 0) {     /* a file             */
                 strncpy(a->iface, fib->fib_FileName, IFACEMAX);
                 a->iface[IFACEMAX] = 0;
