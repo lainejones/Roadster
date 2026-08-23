@@ -18,14 +18,16 @@
  *  +--------------------------------------------------------------+
  *
  * Design notes:
- *  - Offline = ConfigureNetInterface <iface> OFFLINE. Deliberately NOT
- *    NetShutdown: a full stack teardown blocks on every program holding a
- *    bsdsocket socket (smb2fs, netharness, ...), and Roadshow then DEFERS the
- *    teardown, which fires asynchronously later - the class of crash that
- *    took the A500 down repeatedly. Interface-offline stops traffic without
- *    ripping the stack out from under anything.
- *  - Online = AddNetInterface (in case the stack was fully shut down by
- *    other means) followed by ConfigureNetInterface ONLINE UP.
+ *  - Offline = RemoveNetInterface FORCE, Online = AddNetInterface: the pair
+ *    verified to round-trip on hardware. Deliberately NOT NetShutdown: a full
+ *    stack teardown blocks on every program holding a bsdsocket socket
+ *    (smb2fs, netharness, ...), and Roadshow then DEFERS the teardown, which
+ *    fires asynchronously later - the class of crash that took the A500 down
+ *    repeatedly. And not ConfigureNetInterface ONLINE/OFFLINE - an interface
+ *    taken OFFLINE could not be revived by ONLINE UP on either test machine.
+ *  - ARexx port "ROADSTER" (v1.1): ONLINE / OFFLINE / SHOW / HIDE / STATUS /
+ *    QUIT, so DOpus buttons and scripts can drive it like Roadie's port.
+ *    STATUS returns the status line as the ARexx result.
  *  - Commands run ASYNCHRONOUSLY: we write T:Roadster.script ending in an
  *    "Echo >T:Roadster.done" sentinel, SystemTags() it with SYS_Asynch, and
  *    a timer tick polls for the sentinel. The GUI never freezes, even during
@@ -50,6 +52,8 @@
 #include <dos/dos.h>
 #include <dos/dostags.h>
 #include <dos/dosextens.h>
+#include <rexx/storage.h>
+#include <rexx/rxslib.h>
 
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -62,7 +66,7 @@
 #include <string.h>
 
 static const char verstag[] __attribute__((used)) =
-    "$VER: Roadster 1.0 (22.08.2026)";
+    "$VER: Roadster 1.1 (23.08.2026)";
 
 unsigned long __stack = 20000;
 
@@ -71,6 +75,9 @@ struct GfxBase       *GfxBase       = NULL;
 struct Library       *GadToolsBase  = NULL;
 struct Library       *CxBase        = NULL;
 struct Library       *IconBase      = NULL;
+struct RxsLib        *RexxSysBase   = NULL;   /* optional: ARexx result strings */
+
+#include <proto/rexxsyslib.h>
 
 /* ------------------------------------------------------------------ */
 
@@ -107,6 +114,9 @@ struct App {
     /* commodity */
     struct MsgPort *cxPort;
     CxObj          *broker;
+
+    /* ARexx */
+    struct MsgPort *rxPort;        /* public port "ROADSTER"            */
 
     /* timer */
     struct MsgPort *timerPort;
@@ -812,6 +822,87 @@ static BOOL setupBroker(struct App *a)
 }
 
 /* ------------------------------------------------------------------ */
+/* ARexx port "ROADSTER"                                              */
+/* ------------------------------------------------------------------ */
+
+static BOOL setupRexx(struct App *a)
+{
+    a->rxPort = CreateMsgPort();
+    if (!a->rxPort) return FALSE;
+    a->rxPort->mp_Node.ln_Name = (char *)"ROADSTER";
+    a->rxPort->mp_Node.ln_Pri  = 0;
+    AddPort(a->rxPort);
+    return TRUE;
+}
+
+static void cleanupRexx(struct App *a)
+{
+    struct RexxMsg *rm;
+    if (!a->rxPort) return;
+    RemPort(a->rxPort);
+    /* anything still queued must be replied, never deleted */
+    while ((rm = (struct RexxMsg *)GetMsg(a->rxPort))) {
+        rm->rm_Result1 = 20; rm->rm_Result2 = 0;
+        ReplyMsg((struct Message *)rm);
+    }
+    DeleteMsgPort(a->rxPort);
+    a->rxPort = NULL;
+}
+
+/* case-insensitive keyword match against the start of the command,
+ * ending at NUL or whitespace */
+static BOOL rxIs(const char *cmd, const char *kw)
+{
+    while (*kw) {
+        char c = *cmd++, k = *kw++;
+        if (c >= 'a' && c <= 'z') c -= 32;
+        if (c != k) return FALSE;
+    }
+    return (*cmd == 0 || *cmd == ' ' || *cmd == '\t' || *cmd == '\n');
+}
+
+static void handleRexx(struct App *a)
+{
+    struct RexxMsg *rm;
+    while ((rm = (struct RexxMsg *)GetMsg(a->rxPort))) {
+        const char *cmd = (const char *)ARG0(rm);
+        LONG rc = 0;
+        const char *result = NULL;
+
+        if (!cmd) {
+            rc = 20;
+        } else if (rxIs(cmd, "ONLINE")) {
+            if (a->action != ACT_NONE) rc = 5;         /* busy: try again  */
+            else doOnline(a);
+        } else if (rxIs(cmd, "OFFLINE")) {
+            if (a->action != ACT_NONE) rc = 5;
+            else doOffline(a);
+        } else if (rxIs(cmd, "SHOW")) {
+            openWin(a);
+        } else if (rxIs(cmd, "HIDE")) {
+            closeWin(a);
+        } else if (rxIs(cmd, "STATUS")) {
+            /* stack-down is knowable instantly; otherwise report the last
+             * refreshed headline (kept current by the idle poll / actions) */
+            if (!stackUp()) result = "OFFLINE (stack down)";
+            else            result = a->line1;
+        } else if (rxIs(cmd, "QUIT")) {
+            a->quit = TRUE;
+        } else {
+            rc = 10;                                    /* unknown command  */
+        }
+
+        rm->rm_Result1 = rc;
+        rm->rm_Result2 = 0;
+        if (rc == 0 && result && RexxSysBase &&
+            (rm->rm_Action & RXFF_RESULT))
+            rm->rm_Result2 = (LONG)CreateArgstring((STRPTR)result,
+                                                   (ULONG)strlen(result));
+        ReplyMsg((struct Message *)rm);
+    }
+}
+
+/* ------------------------------------------------------------------ */
 
 static void handleGadget(struct App *a, UWORD id)
 {
@@ -830,14 +921,24 @@ static void mainLoop(struct App *a)
 {
     ULONG cxSig    = 1UL << a->cxPort->mp_SigBit;
     ULONG timerSig = a->timerPort ? (1UL << a->timerPort->mp_SigBit) : 0;
-
-    armTimer(a);
+    ULONG rxSig    = a->rxPort ? (1UL << a->rxPort->mp_SigBit) : 0;
 
     while (!a->quit) {
         ULONG winSig = a->win ? (1UL << a->win->UserPort->mp_SigBit) : 0;
-        ULONG got = Wait(cxSig | timerSig | winSig | SIGBREAKF_CTRL_C);
+        ULONG got;
+
+        /* run the heartbeat only while there is something to poll: a command
+         * in flight (done-file check) or an open window (status refresh).
+         * A hidden idle commodity sleeps completely instead of waking every
+         * second to do nothing. */
+        if (!a->timerRunning && (a->action != ACT_NONE || a->win))
+            armTimer(a);
+
+        got = Wait(cxSig | timerSig | winSig | rxSig | SIGBREAKF_CTRL_C);
 
         if (got & SIGBREAKF_CTRL_C) a->quit = TRUE;
+
+        if (rxSig && (got & rxSig)) handleRexx(a);
 
         if (got & cxSig) {
             CxMsg *msg;
@@ -882,7 +983,7 @@ static void mainLoop(struct App *a)
                     startRefresh(a, ACT_REFRESH);
                 }
             }
-            armTimer(a);
+            /* re-armed (or not) at the top of the loop */
         }
 
         if (a->win && (got & winSig)) {
@@ -967,6 +1068,7 @@ int main(int argc, char **argv)
     GadToolsBase  = OpenLibrary("gadtools.library", 37);
     CxBase        = OpenLibrary("commodities.library", 37);
     IconBase      = OpenLibrary("icon.library", 36);      /* optional */
+    RexxSysBase   = (struct RxsLib *)OpenLibrary("rexxsyslib.library", 0);
     if (!IntuitionBase || !GfxBase || !GadToolsBase || !CxBase) goto done;
 
     readArgs(&app, argc, argv);
@@ -974,6 +1076,7 @@ int main(int argc, char **argv)
 
     if (!setupBroker(&app)) goto done;
     if (!setupTimer(&app))  goto done;   /* async polling needs the timer */
+    setupRexx(&app);                     /* non-fatal: no port, still works */
 
     openWin(&app);
     mainLoop(&app);
@@ -981,6 +1084,7 @@ int main(int argc, char **argv)
 
 done:
     closeWin(&app);
+    cleanupRexx(&app);
     cleanupTimer(&app);
     if (app.broker) DeleteCxObjAll(app.broker);
     if (app.cxPort) {
@@ -991,6 +1095,7 @@ done:
     DeleteFile((STRPTR)SCRIPTFILE);
     DeleteFile((STRPTR)DONEFILE);
     DeleteFile((STRPTR)OUTFILE);
+    if (RexxSysBase)   CloseLibrary((struct Library *)RexxSysBase);
     if (IconBase)      CloseLibrary(IconBase);
     if (CxBase)        CloseLibrary(CxBase);
     if (GadToolsBase)  CloseLibrary(GadToolsBase);

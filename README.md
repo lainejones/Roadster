@@ -29,6 +29,12 @@ no FPU use, no Blitz runtime, runs on any 68000+ with Kickstart 2.0+.
 - **Commodity** â€” shows in Exchange, hotkey `ctrl alt r` toggles the window,
   the close gadget hides it (Exchange *Remove* or Ctrl-C quits).
 
+## Efficiency
+
+Built `-Os`, ~12 KB binary, no dynamic allocation in normal operation (the
+listview is a fixed ring pool). The heartbeat timer only runs while a command
+is in flight or the window is open — a hidden idle commodity sleeps completely.
+
 ## Interface selection
 
 The interface name is auto-detected as the first file in
