@@ -29,11 +29,25 @@ no FPU use, no Blitz runtime, runs on any 68000+ with Kickstart 2.0+.
 - **Commodity** â€” shows in Exchange, hotkey `ctrl alt r` toggles the window,
   the close gadget hides it (Exchange *Remove* or Ctrl-C quits).
 
+## ARexx port `ROADSTER` (v1.1)
+
+Commands: `ONLINE`, `OFFLINE`, `SHOW`, `HIDE`, `STATUS` (returns the status
+line as the result string), `QUIT`. rc 5 = busy with another command,
+rc 10 = unknown command. Needs RexxMast running.
+
+```rexx
+/* example */
+address ROADSTER
+options results
+STATUS
+say result      /* e.g. "Status: ONLINE   IP 192.168.50.36" */
+```
+
 ## Efficiency
 
 Built `-Os`, ~12 KB binary, no dynamic allocation in normal operation (the
 listview is a fixed ring pool). The heartbeat timer only runs while a command
-is in flight or the window is open — a hidden idle commodity sleeps completely.
+is in flight or the window is open - a hidden idle commodity sleeps completely.
 
 ## Interface selection
 
