@@ -1,0 +1,8 @@
+# build output / artifacts (rebuild with build.sh)
+out/
+
+# editor / OS cruft
+*.bak
+*~
+.DS_Store
+Thumbs.db

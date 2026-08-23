@@ -1,0 +1,5 @@
+# Sources are built under WSL / amiga-gcc and the shell script runs in sh,
+# so keep LF endings in the working tree on every platform.
+* text=auto eol=lf
+*.png binary
+*.info binary
