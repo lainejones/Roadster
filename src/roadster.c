@@ -7,7 +7,7 @@
  * Plain C + GadTools, runs on any 68000+ with OS 2.0+.
  *
  *  +--------------------------------------------------------------+
- *  | Status: ONLINE   IP 192.168.50.36                            |
+ *  | Status: ONLINE   IP 192.168.1.36                            |
  *  | Iface:  scsidayna                                            |
  *  | [ Offline ] [ Online ] [ Status ] [ Ping ] [ Trace ] [Clear] |
  *  | Target: [ 8.8.8.8__________________ ]                        |
@@ -363,7 +363,7 @@ static void loadOutput(struct App *a, BOOL clearFirst)
 /* status parsing (ShowNetStatus INTERFACES output)                   */
 /*                                                                    */
 /* Name       MTU Type     Address        Recv  Sent  Drop ... Status */
-/* scsidayna 1500 Ethernet 192.168.50.36  1850   401     0 ...     Up */
+/* scsidayna 1500 Ethernet 192.168.1.36  1850   401     0 ...     Up */
 /* ------------------------------------------------------------------ */
 
 static BOOL stackUp(void)

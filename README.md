@@ -46,7 +46,7 @@ rc 10 = unknown command. Needs RexxMast running.
 address ROADSTER
 options results
 STATUS
-say result      /* e.g. "Status: ONLINE   IP 192.168.50.36" */
+say result      /* e.g. "Status: ONLINE   IP 192.168.1.36" */
 ```
 
 ## Efficiency
