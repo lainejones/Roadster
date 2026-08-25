@@ -71,4 +71,6 @@ hunk relocs on this toolchain.
 
 - `src/roadster.c` — the whole program
 - `build.sh` — WSL build script
-- icon: generated with `C:\projects\tools\makeicon_app.py <out> R`
+- `Roadster-1.1.lha` / `Roadster.readme` — the release archive (built with LhA
+  on a real Amiga) and its Aminet-style readme
+- `docs/` — screenshots; the GlowIcon ships inside the archive
