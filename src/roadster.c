@@ -65,8 +65,11 @@
 
 #include <string.h>
 
+#define ROADSTER_VERSION "1.1.1"
+#define ROADSTER_DATE    "02.10.2026"
+
 static const char verstag[] __attribute__((used)) =
-    "$VER: Roadster 1.1 (23.08.2026)";
+    "$VER: Roadster " ROADSTER_VERSION " (" ROADSTER_DATE ")";
 
 unsigned long __stack = 20000;
 
@@ -798,7 +801,7 @@ static BOOL setupBroker(struct App *a)
     memset(&nb, 0, sizeof(nb));
     nb.nb_Version = NB_VERSION;
     nb.nb_Name    = (BYTE *)"Roadster";
-    nb.nb_Title   = (BYTE *)"Roadster 1.0";
+    nb.nb_Title   = (BYTE *)"Roadster " ROADSTER_VERSION;
     nb.nb_Descr   = (BYTE *)"Roadshow online/offline switch";
     nb.nb_Unique  = NBU_UNIQUE | NBU_NOTIFY;
     nb.nb_Flags   = COF_SHOW_HIDE;

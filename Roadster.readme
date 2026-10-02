@@ -2,7 +2,7 @@ Short:        Roadshow on/off switch + status panel
 Author:       Laine Jones (with Claude)
 Uploader:     laine jones gmail com
 Type:         comm/net
-Version:      1.1
+Version:      1.1.1
 Requires:     Kickstart 2.0+; Roadshow TCP/IP stack
 Architecture: m68k-amigaos >= 2.0.4
 
