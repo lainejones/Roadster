@@ -35,7 +35,7 @@ particular accelerator setup here, and grew into a full replacement.
 - **Commodity** — shows in Exchange, hotkey `ctrl alt r` toggles the window,
   the close gadget hides it (Exchange *Remove* or Ctrl-C quits).
 
-## Menus (v1.2)
+## Menus (v1.1.2)
 
 Hold the right mouse button over the window:
 
@@ -98,7 +98,7 @@ say result      /* e.g. "Status: ONLINE   IP 192.168.1.36" */
 
 ## Efficiency
 
-Built `-Os`, ~20 KB binary (12 KB before the 1.2 menus and settings pages), no dynamic allocation in normal operation (the
+Built `-Os`, ~20 KB binary (12 KB before the 1.1.2 menus and settings pages), no dynamic allocation in normal operation (the
 listview is a fixed ring pool). The heartbeat timer only runs while a command
 is in flight or the window is open - a hidden idle commodity sleeps completely.
 

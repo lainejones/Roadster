@@ -35,7 +35,7 @@
  *  - The interface name is auto-detected from DEVS:NetInterfaces/ (first
  *    entry), overridable with an IFACE=<name> CLI argument or icon tooltype.
  *  - ENV:RoadshowOnline is maintained like Roadie did (OS 3.2 title-bar use).
- *  - Menus (v1.2): Project (About / Hide / Quit), Network (the actions, with
+ *  - Menus (v1.1.2): Project (About / Hide / Quit), Network (the actions, with
  *    Amiga-key shortcuts) and Settings (two pages, Save / Use / Defaults /
  *    Cancel, built on amigui.c).
  *
@@ -85,7 +85,7 @@
 
 #include "amigui.h"
 
-#define ROADSTER_VERSION "1.2"
+#define ROADSTER_VERSION "1.1.2"
 #define ROADSTER_DATE    "30.10.2026"
 #define ROADSTER_ABOUT   "A Commodity that switches a Roadshow TCP/IP\n" \
                          "interface on and off, with status, ping and trace.\n\n" \
