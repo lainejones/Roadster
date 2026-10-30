@@ -5,7 +5,7 @@
     python3 tools/mkpkg.py
 
 Produces out/release/ with Roadster.readme, the Roadster drawer
-(Roadster + its tool icon) and Roadster.info (the drawer icon) beside the
+(Roadster + its tool icon + LICENSE) and Roadster.info (the drawer icon) beside the
 drawer, so the drawer shows on Workbench. Archive it with LhA to keep the
 protection bits.
 """
@@ -21,6 +21,7 @@ FILES = [
     ("Roadster.readme",            "Roadster.readme"),
     ("out/Roadster",               "Roadster/Roadster"),
     ("icons/Roadster.info",        "Roadster/Roadster.info"),
+    ("LICENSE",                    "Roadster/LICENSE"),
     ("icons/Roadster-drawer.info", "Roadster.info"),
 ]
 

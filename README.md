@@ -112,7 +112,7 @@ interface type (Ethernet, SLIP…).
 ## Install
 
 The release archive holds `Roadster.readme` and a `Roadster` drawer
-(`Roadster` + `Roadster.info`), with `Roadster.info` beside the drawer so it
+(`Roadster`, `Roadster.info` and `LICENSE`), with `Roadster.info` beside the drawer so it
 shows on Workbench. Needs Kickstart 2.0+ and Roadshow.
 
 Copy the drawer anywhere (`SYS:Roadster` is typical) and double-click
@@ -126,7 +126,7 @@ unpacking a `.zip` run `protect Roadster +e` in the drawer.
 
 `./build.sh` under WSL with the amiga-gcc (bebbo) toolchain on PATH. Then
 `python3 tools/mkpkg.py` stages the release in `out/release/` (readme,
-drawer, both icons).
+drawer, both icons, licence).
 Strip at link time (`gcc -s`); the standalone `m68k-amigaos-strip` corrupts
 hunk relocs on this toolchain.
 
@@ -141,3 +141,9 @@ hunk relocs on this toolchain.
 - `Roadster-1.1.lha` / `Roadster.readme` — the 1.1 release archive (built with LhA
   on a real Amiga) and its Aminet-style readme
 - `docs/` — screenshots; the GlowIcon ships inside the archive
+- `LICENSE` — the GNU GPL version 3
+
+## Licence
+
+GPL-3.0 (the GNU General Public License, version 3) - see
+[`LICENSE`](LICENSE). Project > About... says the same.

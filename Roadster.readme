@@ -2,7 +2,7 @@ Short:        Roadshow on/off switch + status panel
 Author:       Laine Jones (with Claude)
 Uploader:     laine jones gmail com
 Type:         comm/net
-Version:      1.1.1
+Version:      1.1.2
 Requires:     Kickstart 2.0+; Roadshow TCP/IP stack
 Architecture: m68k-amigaos >= 2.0.4
 
@@ -31,12 +31,27 @@ FEATURES
 - ARexx port "ROADSTER": ONLINE / OFFLINE / SHOW / HIDE / STATUS
   (returns the status line as the result string) / QUIT.
   rc 5 = busy, rc 10 = unknown command. Needs RexxMast running.
+- Menus (right mouse button): Project (About / Hide / Quit), Network
+  (Online / Offline / Full status / Ping / Trace / Clear output, with
+  Amiga-key shortcuts) and Settings.
+- Settings pages: Connection (interface, ping target, refresh interval)
+  and Commodity (hotkey, priority, open window at start), each with
+  Save / Use / Defaults / Cancel. Saved in ENV:Roadster.prefs (and
+  ENVARC: on Save); the file wins over tooltypes and CLI arguments.
+  Changes take effect at once.
+- Opens at 400x180 and fits a 640x200 screen with Topaz 8; it can be
+  sized up.
 
 INSTALL
 
 Copy the drawer anywhere (SYS:Roadster is typical) and double-click.
 The interface name is auto-detected from DEVS:NetInterfaces/ - override
-with an IFACE=<name> tooltype or CLI argument if you have several.
+with an IFACE=<name> tooltype or CLI argument, or on the Settings >
+Connection page, if you have several.
+
+LICENCE
+
+GPL-3.0 - see the LICENSE file in the drawer.
 
 Verified on: A500 (GVP A530 + BlueSCSI DaynaPORT WiFi), A2000 (X-Surf),
 A4000 (ZZ9000), CD32 (SLIP). On the ZZ9000 the driver itself does not
