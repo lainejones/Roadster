@@ -89,7 +89,7 @@
 #define ROADSTER_DATE    "30.10.2026"
 #define ROADSTER_ABOUT   "A Commodity that switches a Roadshow TCP/IP\n" \
                          "interface on and off, with status, ping and trace.\n\n" \
-                         "Licence: not yet stated (see the README)"
+                         "Licence: GPL-3.0"
 
 static const char verstag[] __attribute__((used)) =
     "$VER: Roadster " ROADSTER_VERSION " (" ROADSTER_DATE ")";
