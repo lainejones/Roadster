@@ -800,8 +800,9 @@ static void openWin(struct App *a)
     a->vi = GetVisualInfo(a->scr, TAG_END);
     if (!a->vi) { UnlockPubScreen(NULL, a->scr); a->scr = NULL; return; }
 
-    winw = 480; if (winw > a->scr->Width) winw = a->scr->Width;
-    winh = 236;
+    /* small by default (a little over the minimum); it can be sized up */
+    winw = 400; if (winw > a->scr->Width) winw = a->scr->Width;
+    winh = 180;
     if (winh > a->scr->Height - (a->scr->BarHeight + 2))
         winh = a->scr->Height - (a->scr->BarHeight + 2);
     wtop = a->scr->BarHeight + 2;
