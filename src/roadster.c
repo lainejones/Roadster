@@ -35,6 +35,24 @@
  *  - The interface name is auto-detected from DEVS:NetInterfaces/ (first
  *    entry), overridable with an IFACE=<name> CLI argument or icon tooltype.
  *  - ENV:RoadshowOnline is maintained like Roadie did (OS 3.2 title-bar use).
+ *  - Menus (v1.2): Project (About / Hide / Quit), Network (the actions, with
+ *    Amiga-key shortcuts) and Settings (two pages, Save / Use / Defaults /
+ *    Cancel, built on amigui.c).
+ *
+ * SETTINGS AND THEIR PRECEDENCE (lowest first, each one overrides the last):
+ *    1. built-in defaults
+ *    2. icon tooltypes (Workbench start) or KEY=value CLI arguments
+ *    3. the settings file ENV:Roadster.prefs (else ENVARC:Roadster.prefs),
+ *       written by Settings -> Save (ENV: + ENVARC:) or Use (ENV: only)
+ *  Keys, the same in all three places:
+ *    IFACE=<name>        interface (empty = first file in DEVS:NetInterfaces)
+ *    TARGET=<host>       Ping / Trace target                (8.8.8.8)
+ *    REFRESH=<secs>      status refresh while the window is open, 0 = off (15)
+ *    CX_POPKEY=<keys>    hotkey that shows/hides the window (ctrl alt r)
+ *    CX_PRIORITY=<n>     commodity priority, -128..127      (0)
+ *    CX_POPUP=YES|NO     open the window at start           (YES)
+ *  The file holds every key, so once saved it wins over the tooltypes; delete
+ *  it from ENV: and ENVARC: to go back to the tooltypes.
  *
  * Build with build.sh under WSL (amiga-gcc). Strip at LINK time with -s;
  * the standalone strip corrupts hunk relocs on this toolchain.
@@ -65,8 +83,13 @@
 
 #include <string.h>
 
-#define ROADSTER_VERSION "1.1.1"
-#define ROADSTER_DATE    "02.10.2026"
+#include "amigui.h"
+
+#define ROADSTER_VERSION "1.2"
+#define ROADSTER_DATE    "30.10.2026"
+#define ROADSTER_ABOUT   "A Commodity that switches a Roadshow TCP/IP\n" \
+                         "interface on and off, with status, ping and trace.\n\n" \
+                         "Licence: not yet stated (see the README)"
 
 static const char verstag[] __attribute__((used)) =
     "$VER: Roadster " ROADSTER_VERSION " (" ROADSTER_DATE ")";
@@ -94,9 +117,56 @@ struct RxsLib        *RexxSysBase   = NULL;   /* optional: ARexx result strings 
 #define IFACEMAX  32
 
 #define POLLSECS  1                /* sentinel poll while busy          */
-#define IDLESECS  15               /* auto status refresh when idle     */
+#define KEYMAX    64
+
+#define PREFSFILE "Roadster.prefs"     /* in ENV: / ENVARC:             */
+
+/* built-in defaults (precedence level 1, see the top of the file) */
+#define DEF_TARGET  "8.8.8.8"
+#define DEF_REFRESH 15             /* auto status refresh when idle     */
+#define DEF_POPKEY  "ctrl alt r"
+#define DEF_PRI     0
+#define DEF_POPUP   TRUE
 
 #define EVT_HOTKEY 1L
+
+enum {                             /* menu user data                    */
+    MN_ABOUT = 1, MN_HIDE, MN_QUIT,
+    MN_ONLINE, MN_OFFLINE, MN_STATUS, MN_PING, MN_TRACE, MN_CLEAR,
+    MN_SET_NET, MN_SET_CX
+};
+#define NETMENU      1             /* menu number of "Network"          */
+#define NETMENU_ACTS 5             /* its first 5 items run commands    */
+
+static struct NewMenu menuDef[] = {
+    {NM_TITLE, (STRPTR)"Project",        NULL, 0, 0, NULL},
+    {NM_ITEM,  (STRPTR)"About...",       NULL, 0, 0, (APTR)MN_ABOUT},
+    {NM_ITEM,  NM_BARLABEL,              NULL, 0, 0, NULL},
+    {NM_ITEM,  (STRPTR)"Hide",   (STRPTR)"H",  0, 0, (APTR)MN_HIDE},
+    {NM_ITEM,  (STRPTR)"Quit",   (STRPTR)"Q",  0, 0, (APTR)MN_QUIT},
+    {NM_TITLE, (STRPTR)"Network",        NULL, 0, 0, NULL},
+    {NM_ITEM,  (STRPTR)"Online",      (STRPTR)"O", 0, 0, (APTR)MN_ONLINE},
+    {NM_ITEM,  (STRPTR)"Offline",     (STRPTR)"F", 0, 0, (APTR)MN_OFFLINE},
+    {NM_ITEM,  (STRPTR)"Full status", (STRPTR)"S", 0, 0, (APTR)MN_STATUS},
+    {NM_ITEM,  (STRPTR)"Ping",        (STRPTR)"P", 0, 0, (APTR)MN_PING},
+    {NM_ITEM,  (STRPTR)"Trace",       (STRPTR)"T", 0, 0, (APTR)MN_TRACE},
+    {NM_ITEM,  NM_BARLABEL,              NULL, 0, 0, NULL},
+    {NM_ITEM,  (STRPTR)"Clear output", (STRPTR)"K", 0, 0, (APTR)MN_CLEAR},
+    {NM_TITLE, (STRPTR)"Settings",       NULL, 0, 0, NULL},
+    {NM_ITEM,  (STRPTR)"Connection...",  NULL, 0, 0, (APTR)MN_SET_NET},
+    {NM_ITEM,  (STRPTR)"Commodity...",   NULL, 0, 0, (APTR)MN_SET_CX},
+    {NM_END,   NULL,                     NULL, 0, 0, NULL}
+};
+
+/* what can be set (tooltypes / CLI / settings file / Settings pages) */
+struct Cfg {
+    char iface[IFACEMAX + 2];      /* empty = auto-detect                */
+    char target[HOSTMAX + 2];
+    LONG refresh;                  /* seconds, 0 = off                   */
+    char popkey[KEYMAX + 2];
+    LONG pri;
+    BOOL popup;
+};
 
 enum {                             /* gadget IDs                        */
     GAD_OFFLINE = 1, GAD_ONLINE, GAD_STATUS, GAD_PING, GAD_TRACE,
@@ -117,6 +187,9 @@ struct App {
     /* commodity */
     struct MsgPort *cxPort;
     CxObj          *broker;
+    CxObj          *hotkey;        /* the CX_POPKEY filter              */
+
+    struct Cfg      cfg;
 
     /* ARexx */
     struct MsgPort *rxPort;        /* public port "ROADSTER"            */
@@ -130,6 +203,7 @@ struct App {
     struct Screen  *scr;
     APTR            vi;
     struct Window  *win;
+    struct Menu    *menu;
     struct Gadget  *glist, *gTarget, *gList, *gMsg, *gLine1, *gLine2;
     WORD            resizePending;
 
@@ -497,7 +571,7 @@ static void readTarget(struct App *a)
         strncpy(a->target, (char *)s, HOSTMAX);
         a->target[HOSTMAX] = 0;
     }
-    if (!a->target[0]) strcpy(a->target, "8.8.8.8");
+    if (!a->target[0]) strcpy(a->target, a->cfg.target[0] ? a->cfg.target : DEF_TARGET);
 }
 
 static void doPing(struct App *a)
@@ -659,7 +733,13 @@ static BOOL makeGadgets(struct App *a)
 static void enableButtons(struct App *a, BOOL on)
 {
     struct Gadget *g;
+    int i;
     if (!a->win) return;
+    if (a->menu)                       /* ghost the matching menu items too */
+        for (i = 0; i < NETMENU_ACTS; i++) {
+            if (on) OnMenu(a->win, FULLMENUNUM(NETMENU, i, NOSUB));
+            else    OffMenu(a->win, FULLMENUNUM(NETMENU, i, NOSUB));
+        }
     for (g = a->glist; g; g = g->NextGadget) {
         switch (g->GadgetID) {
         case GAD_OFFLINE: case GAD_ONLINE: case GAD_STATUS:
@@ -697,10 +777,12 @@ static void relayout(struct App *a)
 static void closeWin(struct App *a)
 {
     if (a->win) {
+        if (a->menu) ClearMenuStrip(a->win);
         if (a->glist) RemoveGList(a->win, a->glist, -1);
         CloseWindow(a->win);
         a->win = NULL;
     }
+    if (a->menu) { FreeMenus(a->menu); a->menu = NULL; }
     if (a->glist) { FreeGadgets(a->glist); a->glist = NULL; }
     a->gTarget = a->gList = a->gMsg = a->gLine1 = a->gLine2 = NULL;
     if (a->vi)  { FreeVisualInfo(a->vi); a->vi = NULL; }
@@ -734,14 +816,21 @@ static void openWin(struct App *a)
         (ULONG)WA_Flags,     WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET |
                              WFLG_SIZEGADGET | WFLG_SIZEBBOTTOM | WFLG_ACTIVATE,
         (ULONG)WA_IDCMP,     IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW |
-                             IDCMP_NEWSIZE | BUTTONIDCMP | STRINGIDCMP |
-                             LISTVIEWIDCMP,
+                             IDCMP_NEWSIZE | IDCMP_MENUPICK | BUTTONIDCMP |
+                             STRINGIDCMP | LISTVIEWIDCMP,
         (ULONG)WA_PubScreen, (ULONG)a->scr,
+        (ULONG)WA_NewLookMenus, TRUE,    /* V39 tag; ignored on 2.x */
         TAG_END);
     if (!a->win) {
         FreeVisualInfo(a->vi); a->vi = NULL;
         UnlockPubScreen(NULL, a->scr); a->scr = NULL;
         return;
+    }
+    /* the menu strip; GTMN_NewLookMenus is V39 and ignored on 2.x */
+    if ((a->menu = CreateMenus(menuDef, TAG_END)) != NULL) {
+        if (LayoutMenus(a->menu, a->vi, (ULONG)GTMN_NewLookMenus, TRUE, TAG_END))
+            SetMenuStrip(a->win, a->menu);
+        else { FreeMenus(a->menu); a->menu = NULL; }
     }
     relayout(a);
 
@@ -790,10 +879,31 @@ static void cleanupTimer(struct App *a)
     if (a->timerPort) { DeleteMsgPort(a->timerPort); a->timerPort = NULL; }
 }
 
+/* (Re)install the show/hide hotkey. A bad key description leaves the old
+ * hotkey in place and returns FALSE. */
+static BOOL setHotkey(struct App *a, const char *desc)
+{
+    CxObj *filter, *sender, *translate;
+
+    filter = CxFilter((STRPTR)desc);
+    if (!filter) return FALSE;
+    sender = CxSender(a->cxPort, EVT_HOTKEY);
+    if (sender) AttachCxObj(filter, sender);
+    translate = CxTranslate(NULL);
+    if (translate) AttachCxObj(filter, translate);
+    if (CxObjError(filter) != 0 || !sender || !translate) {
+        DeleteCxObjAll(filter);
+        return FALSE;
+    }
+    if (a->hotkey) DeleteCxObjAll(a->hotkey);   /* unlinks it from the broker */
+    a->hotkey = filter;
+    AttachCxObj(a->broker, filter);
+    return TRUE;
+}
+
 static BOOL setupBroker(struct App *a)
 {
     struct NewBroker nb;
-    CxObj *filter, *sender, *translate;
 
     a->cxPort = CreateMsgPort();
     if (!a->cxPort) return FALSE;
@@ -806,19 +916,13 @@ static BOOL setupBroker(struct App *a)
     nb.nb_Unique  = NBU_UNIQUE | NBU_NOTIFY;
     nb.nb_Flags   = COF_SHOW_HIDE;
     nb.nb_Port    = a->cxPort;
-    nb.nb_Pri     = 0;
+    nb.nb_Pri     = (BYTE)a->cfg.pri;
 
     a->broker = CxBroker(&nb, NULL);
     if (!a->broker) return FALSE;
 
-    filter = CxFilter((STRPTR)"ctrl alt r");
-    if (filter) {
-        AttachCxObj(a->broker, filter);
-        sender = CxSender(a->cxPort, EVT_HOTKEY);
-        if (sender) AttachCxObj(filter, sender);
-        translate = CxTranslate(NULL);
-        if (translate) AttachCxObj(filter, translate);
-    }
+    if (!setHotkey(a, a->cfg.popkey))           /* bad CX_POPKEY: default */
+        setHotkey(a, DEF_POPKEY);
 
     ActivateCxObj(a->broker, 1L);
     return TRUE;
@@ -920,6 +1024,420 @@ static void handleGadget(struct App *a, UWORD id)
     }
 }
 
+/* ------------------------------------------------------------------ */
+/* settings: defaults < tooltypes / CLI args < ENV:Roadster.prefs     */
+/* (see the top of the file)                                          */
+/* ------------------------------------------------------------------ */
+
+static void copyStr(char *d, const char *s, int max)
+{
+    int n;
+    strncpy(d, s, max);
+    d[max] = 0;
+    n = (int)strlen(d);                    /* no trailing blanks / CR     */
+    while (n > 0 && (d[n-1] == ' ' || d[n-1] == '\t' || d[n-1] == '\r'))
+        d[--n] = 0;
+}
+
+static BOOL keyIs(const char *s, const char *kw)   /* case-insensitive    */
+{
+    while (*kw) {
+        char c = *s++;
+        if (c >= 'a' && c <= 'z') c -= 32;
+        if (c != *kw++) return FALSE;
+    }
+    return *s == 0;
+}
+
+static LONG toLong(const char *s, LONG def)
+{
+    LONG v;
+    return (StrToLong((STRPTR)s, &v) > 0) ? v : def;
+}
+
+static void cfgDefaults(struct Cfg *c)
+{
+    memset(c, 0, sizeof(*c));
+    strcpy(c->target, DEF_TARGET);
+    c->refresh = DEF_REFRESH;
+    strcpy(c->popkey, DEF_POPKEY);
+    c->pri     = DEF_PRI;
+    c->popup   = DEF_POPUP;
+}
+
+static void cfgClamp(struct Cfg *c)
+{
+    if (c->refresh < 0) c->refresh = 0;
+    if (c->refresh > 0 && c->refresh < 5) c->refresh = 5;
+    if (c->refresh > 3600) c->refresh = 3600;
+    if (c->pri < -128) c->pri = -128;
+    if (c->pri > 127)  c->pri = 127;
+    if (!c->target[0]) strcpy(c->target, DEF_TARGET);
+    if (!c->popkey[0]) strcpy(c->popkey, DEF_POPKEY);
+}
+
+static const char *cfgKeys[] = {
+    "IFACE", "TARGET", "REFRESH", "CX_POPKEY", "CX_PRIORITY", "CX_POPUP"
+};
+
+static void cfgSet(struct Cfg *c, const char *key, const char *v)
+{
+    while (*v == ' ' || *v == '\t') v++;
+    if      (keyIs(key, "IFACE"))       copyStr(c->iface, v, IFACEMAX);
+    else if (keyIs(key, "TARGET"))      copyStr(c->target, v, HOSTMAX);
+    else if (keyIs(key, "REFRESH"))     c->refresh = toLong(v, c->refresh);
+    else if (keyIs(key, "CX_POPKEY"))   copyStr(c->popkey, v, KEYMAX);
+    else if (keyIs(key, "CX_PRIORITY")) c->pri = toLong(v, c->pri);
+    else if (keyIs(key, "CX_POPUP")) {
+        char ch = v[0];
+        c->popup = !(ch == 'N' || ch == 'n' || ch == 'F' || ch == 'f' ||
+                     ch == '0' || keyIs(v, "OFF"));
+    }
+}
+
+/* "KEY=value" (a CLI argument or a line of the settings file) */
+static void cfgLine(struct Cfg *c, const char *line)
+{
+    char key[16];
+    int i = 0;
+    while (*line == ' ' || *line == '\t') line++;
+    while (*line && *line != '=' && i < (int)sizeof(key) - 1) key[i++] = *line++;
+    if (*line != '=') return;
+    while (i > 0 && (key[i-1] == ' ' || key[i-1] == '\t')) i--;
+    key[i] = 0;
+    cfgSet(c, key, line + 1);
+}
+
+/* precedence level 2: icon tooltypes or KEY=value CLI arguments */
+static void readArgs(struct App *a, int argc, char **argv)
+{
+    int i;
+    if (argc > 0) {
+        for (i = 1; i < argc; i++)
+            cfgLine(&a->cfg, argv[i]);
+    } else if (IconBase) {
+        struct WBStartup *wbs = (struct WBStartup *)argv;
+        if (wbs && wbs->sm_NumArgs > 0) {
+            struct DiskObject *dob;
+            BPTR old = CurrentDir(wbs->sm_ArgList[0].wa_Lock);
+            dob = GetDiskObject((STRPTR)wbs->sm_ArgList[0].wa_Name);
+            if (dob) {
+                for (i = 0; i < (int)(sizeof(cfgKeys) / sizeof(cfgKeys[0])); i++) {
+                    STRPTR v = FindToolType((CONST_STRPTR *)dob->do_ToolTypes,
+                                            (STRPTR)cfgKeys[i]);
+                    if (v) cfgSet(&a->cfg, cfgKeys[i], (const char *)v);
+                }
+                FreeDiskObject(dob);
+            }
+            CurrentDir(old);
+        }
+    }
+}
+
+/* precedence level 3: ENV:Roadster.prefs, else ENVARC:Roadster.prefs */
+static void readPrefsFile(struct Cfg *c)
+{
+    static char buf[512];
+    char *p;
+    if (amg_env_read(PREFSFILE, buf, sizeof(buf)) < 0) return;
+    for (p = buf; *p; ) {
+        char *e = p;
+        while (*e && *e != '\n') e++;
+        if (*e) *e++ = 0;
+        cfgLine(c, p);
+        p = e;
+    }
+}
+
+static void putKV(char *buf, const char *key, const char *val)
+{
+    strcat(buf, key); strcat(buf, "="); strcat(buf, val); strcat(buf, "\n");
+}
+
+static void ltoa10(LONG v, char *out)
+{
+    char tmp[12]; int n = 0;
+    ULONG u = (v < 0) ? (ULONG)-v : (ULONG)v;
+    do { tmp[n++] = (char)('0' + u % 10); u /= 10; } while (u);
+    if (v < 0) *out++ = '-';
+    while (n) *out++ = tmp[--n];
+    *out = 0;
+}
+
+static BOOL writePrefsFile(struct Cfg *c, BOOL keep)
+{
+    static char buf[400];
+    char num[12];
+    buf[0] = 0;
+    putKV(buf, "IFACE", c->iface);
+    putKV(buf, "TARGET", c->target);
+    ltoa10(c->refresh, num); putKV(buf, "REFRESH", num);
+    putKV(buf, "CX_POPKEY", c->popkey);
+    ltoa10(c->pri, num);     putKV(buf, "CX_PRIORITY", num);
+    putKV(buf, "CX_POPUP", c->popup ? "YES" : "NO");
+    return amg_env_write(PREFSFILE, buf, (ULONG)strlen(buf), keep) != 0;
+}
+
+/* take a new configuration into the running program */
+static void applyCfg(struct App *a, const struct Cfg *old)
+{
+    if (strcmp(a->cfg.iface, old->iface) != 0) {
+        strcpy(a->iface, a->cfg.iface);
+        detectIface(a);                      /* empty = auto-detect again */
+        if (a->action == ACT_NONE) startRefresh(a, ACT_REFRESH);
+    }
+    if (strcmp(a->cfg.target, old->target) != 0) {
+        strcpy(a->target, a->cfg.target);
+        if (a->win && a->gTarget)
+            GT_SetGadgetAttrs(a->gTarget, a->win, NULL,
+                              (ULONG)GTST_String, (ULONG)a->target, TAG_END);
+    }
+    a->idleTicks = 0;
+    if (strcmp(a->cfg.popkey, old->popkey) != 0 && !setHotkey(a, a->cfg.popkey)) {
+        strcpy(a->cfg.popkey, old->popkey);  /* keep the hotkey that works */
+        setMsg(a, "bad hotkey - kept the old one");
+    }
+    if (a->cfg.pri != old->pri && a->broker)
+        SetCxObjPri(a->broker, a->cfg.pri);
+}
+
+/* ---- the Settings pages ------------------------------------------ */
+
+enum { FK_STR, FK_INT, FK_CHECK };
+
+struct Field {
+    const char *label;
+    int kind;
+    int maxc;
+};
+
+#define PG_FIELDS 3
+#define PG_STRLEN (KEYMAX + 2)
+
+struct PageVals {
+    char s[PG_FIELDS][PG_STRLEN];        /* FK_STR                         */
+    LONG n[PG_FIELDS];                   /* FK_INT and FK_CHECK            */
+};
+
+struct PageCtx {
+    const struct Field *f;
+    const struct PageVals *def;
+};
+
+static const struct Field netFields[PG_FIELDS] = {
+    {"Interface",   FK_STR, IFACEMAX},
+    {"Ping target", FK_STR, HOSTMAX},
+    {"Refresh (s)", FK_INT, 4}
+};
+static const struct Field cxFields[PG_FIELDS] = {
+    {"Hotkey",      FK_STR, KEYMAX},
+    {"Priority",    FK_INT, 4},
+    {"Open window at start", FK_CHECK, 0}
+};
+
+static void cfgToNet(const struct Cfg *c, struct PageVals *v)
+{
+    memset(v, 0, sizeof(*v));
+    strcpy(v->s[0], c->iface); strcpy(v->s[1], c->target); v->n[2] = c->refresh;
+}
+
+static void cfgToCx(const struct Cfg *c, struct PageVals *v)
+{
+    memset(v, 0, sizeof(*v));
+    strcpy(v->s[0], c->popkey); v->n[1] = c->pri; v->n[2] = c->popup;
+}
+
+static void setField(AmgPage *pg, const struct Field *f, int i, const struct PageVals *v)
+{
+    switch (f[i].kind) {
+    case FK_STR:
+        GT_SetGadgetAttrs(pg->g[i], pg->win, NULL, (ULONG)GTST_String, (ULONG)v->s[i], TAG_END);
+        break;
+    case FK_INT:
+        GT_SetGadgetAttrs(pg->g[i], pg->win, NULL, (ULONG)GTIN_Number, (ULONG)v->n[i], TAG_END);
+        break;
+    case FK_CHECK:
+        GT_SetGadgetAttrs(pg->g[i], pg->win, NULL, (ULONG)GTCB_Checked, (ULONG)v->n[i], TAG_END);
+        break;
+    }
+}
+
+static void pageGadget(AmgPage *pg, int id, UWORD code, void *ctx)
+{
+    struct PageCtx *pc = (struct PageCtx *)ctx;
+    int i;
+    (void)code;
+    if (id == AMG_ID_DEFAULTS)
+        for (i = 0; i < PG_FIELDS; i++)
+            setField(pg, pc->f, i, pc->def);
+}
+
+/* One page: labelled fields, a one-line note, Save / Use / Defaults /
+ * Cancel. Sized from the screen font: with Topaz 8 it is about 400 x 100,
+ * so it fits a 640x200 NTSC screen. Returns AMG_SAVE / AMG_USE / AMG_CANCEL
+ * and, unless cancelled, the edited values in v. */
+static int runPage(struct App *a, const char *title, const struct Field *f,
+                   const char *note, struct PageVals *v, const struct PageVals *def)
+{
+    struct RastPort *srp = &a->scr->RastPort;     /* measures in the screen font */
+    struct PageCtx pc;
+    struct NewGadget ng;
+    struct Gadget *gad;
+    AmgPage pg;
+    WORD fh = srp->TxHeight, bh = fh + 6, rowH = bh + 4;
+    WORD labW = 0, strW, intW, w, h, x0, y, chkW = 0;
+    int i, res;
+
+    for (i = 0; i < PG_FIELDS; i++) {
+        WORD l = TextLength(srp, (STRPTR)f[i].label, strlen(f[i].label));
+        if (f[i].kind == FK_CHECK) { if (l + 34 > chkW) chkW = l + 34; }
+        else if (l + 8 > labW) labW = l + 8;
+    }
+    strW = TextLength(srp, (STRPTR)"0", 1) * 28;
+    intW = TextLength(srp, (STRPTR)"0", 1) * 7 + 12;
+    w = 8 + labW + (strW > chkW ? strW : chkW) + 8;
+    i = TextLength(srp, (STRPTR)note, strlen(note)) + 16;
+    if (w < i) w = i;
+    if (w < amg_min_width(a->scr->Font)) w = amg_min_width(a->scr->Font);
+    h = 8 + PG_FIELDS * rowH + fh + 8 + bh + 8;
+
+    if (!amg_page_open(&pg, a->scr, a->vi, a->scr->Font, a->win, title, w, h))
+        return AMG_CANCEL;
+    w = pg.win->Width - pg.win->BorderLeft - pg.win->BorderRight;   /* may be clipped */
+
+    gad = CreateContext(&pg.glist);
+    x0 = pg.win->BorderLeft + 8;
+    y  = pg.win->BorderTop + 8;
+    memset(&ng, 0, sizeof(ng));
+    ng.ng_TextAttr   = a->scr->Font;
+    ng.ng_VisualInfo = a->vi;
+    for (i = 0; i < PG_FIELDS && gad; i++) {
+        ng.ng_LeftEdge = x0 + labW; ng.ng_TopEdge = y;
+        ng.ng_Height = bh; ng.ng_GadgetText = (STRPTR)f[i].label;
+        ng.ng_GadgetID = i + 1; ng.ng_Flags = PLACETEXT_LEFT;
+        switch (f[i].kind) {
+        case FK_STR:
+            ng.ng_Width = strW;
+            gad = CreateGadget(STRING_KIND, gad, &ng,
+                               (ULONG)GTST_String, (ULONG)v->s[i],
+                               (ULONG)GTST_MaxChars, (ULONG)f[i].maxc, TAG_END);
+            break;
+        case FK_INT:
+            ng.ng_Width = intW;
+            gad = CreateGadget(INTEGER_KIND, gad, &ng,
+                               (ULONG)GTIN_Number, (ULONG)v->n[i],
+                               (ULONG)GTIN_MaxChars, (ULONG)f[i].maxc, TAG_END);
+            break;
+        case FK_CHECK:
+            ng.ng_LeftEdge = x0; ng.ng_Width = 26; ng.ng_Height = fh + 3;
+            ng.ng_TopEdge = y + (bh - (fh + 3)) / 2;
+            ng.ng_Flags = PLACETEXT_RIGHT;
+            gad = CreateGadget(CHECKBOX_KIND, gad, &ng,
+                               (ULONG)GTCB_Checked, (ULONG)v->n[i], TAG_END);
+            break;
+        }
+        pg.g[i] = gad;
+        y += rowH;
+    }
+    if (gad) {
+        ng.ng_LeftEdge = x0; ng.ng_TopEdge = y; ng.ng_Width = w - 16;
+        ng.ng_Height = fh + 2; ng.ng_GadgetText = NULL; ng.ng_GadgetID = 0;
+        ng.ng_Flags = 0;
+        gad = CreateGadget(TEXT_KIND, gad, &ng, (ULONG)GTTX_Text, (ULONG)note, TAG_END);
+        y += fh + 8;
+    }
+    if (gad)
+        gad = amg_buttons(&pg, gad, y - pg.win->BorderTop, w, 1);
+    if (!gad) { amg_page_close(&pg); return AMG_CANCEL; }
+
+    amg_page_show(&pg);
+    pc.f = f; pc.def = def;
+    res = amg_page_run(&pg, pageGadget, &pc);
+    if (res != AMG_CANCEL)
+        for (i = 0; i < PG_FIELDS; i++) {
+            if (f[i].kind == FK_STR)
+                copyStr(v->s[i], amg_string(pg.g[i]), f[i].maxc);
+            else if (f[i].kind == FK_INT)
+                v->n[i] = toLong(amg_string(pg.g[i]), v->n[i]);
+            else
+                v->n[i] = amg_checked(pg.g[i]);
+        }
+    amg_page_close(&pg);
+    return res;
+}
+
+static void settingsPage(struct App *a, BOOL commodity)
+{
+    struct PageVals v, def;
+    struct Cfg old = a->cfg, dc;
+    struct Requester block;
+    BOOL blocked;
+    int res;
+
+    if (!a->win) return;
+    cfgDefaults(&dc);
+    if (commodity) { cfgToCx(&a->cfg, &v); cfgToCx(&dc, &def); }
+    else           { cfgToNet(&a->cfg, &v); cfgToNet(&dc, &def); }
+
+    /* an empty requester keeps the main window still while the page is up */
+    InitRequester(&block);
+    blocked = Request(&block, a->win);
+
+    if (commodity)
+        res = runPage(a, "Roadster: Commodity", cxFields,
+                      "Hotkey e.g. ctrl alt r   Priority -128..127", &v, &def);
+    else
+        res = runPage(a, "Roadster: Connection", netFields,
+                      "Empty interface = auto. Refresh 0 = off", &v, &def);
+
+    if (blocked) EndRequest(&block, a->win);
+    if (res == AMG_CANCEL) return;
+
+    if (commodity) {
+        copyStr(a->cfg.popkey, v.s[0], KEYMAX);
+        a->cfg.pri = v.n[1]; a->cfg.popup = v.n[2] ? TRUE : FALSE;
+    } else {
+        copyStr(a->cfg.iface, v.s[0], IFACEMAX);
+        copyStr(a->cfg.target, v.s[1], HOSTMAX);
+        a->cfg.refresh = v.n[2];
+    }
+    cfgClamp(&a->cfg);
+    applyCfg(a, &old);
+    if (!writePrefsFile(&a->cfg, res == AMG_SAVE))
+        setMsg(a, "could not write " PREFSFILE);
+    else if (res == AMG_SAVE)
+        setMsg(a, "settings saved");
+    else
+        setMsg(a, "settings in use until reboot");
+}
+
+/* ---- menu --------------------------------------------------------- */
+
+static void doMenu(struct App *a, ULONG item)
+{
+    if (item >= MN_ONLINE && item <= MN_TRACE && a->action != ACT_NONE) {
+        setMsg(a, "busy - wait for the current command");
+        return;
+    }
+    switch (item) {
+    case MN_ABOUT:
+        amg_about(a->win, "Roadster", ROADSTER_VERSION, ROADSTER_ABOUT);
+        break;
+    case MN_HIDE:    closeWin(a); break;      /* commodity keeps running */
+    case MN_QUIT:    a->quit = TRUE; break;
+    case MN_ONLINE:  doOnline(a);  break;
+    case MN_OFFLINE: doOffline(a); break;
+    case MN_STATUS:  doShow(a);    break;
+    case MN_PING:    doPing(a);    break;
+    case MN_TRACE:   doTrace(a);   break;
+    case MN_CLEAR:   clearLines(a); setMsg(a, "ready"); break;
+    case MN_SET_NET: settingsPage(a, FALSE); break;
+    case MN_SET_CX:  settingsPage(a, TRUE);  break;
+    }
+}
+
+/* ------------------------------------------------------------------ */
+
 static void mainLoop(struct App *a)
 {
     ULONG cxSig    = 1UL << a->cxPort->mp_SigBit;
@@ -934,7 +1452,8 @@ static void mainLoop(struct App *a)
          * in flight (done-file check) or an open window (status refresh).
          * A hidden idle commodity sleeps completely instead of waking every
          * second to do nothing. */
-        if (!a->timerRunning && (a->action != ACT_NONE || a->win))
+        if (!a->timerRunning &&
+            (a->action != ACT_NONE || (a->win && a->cfg.refresh > 0)))
             armTimer(a);
 
         got = Wait(cxSig | timerSig | winSig | rxSig | SIGBREAKF_CTRL_C);
@@ -981,7 +1500,7 @@ static void mainLoop(struct App *a)
                 }
             } else if (a->win) {
                 /* idle: refresh the headline every IDLESECS */
-                if (++a->idleTicks >= IDLESECS) {
+                if (a->cfg.refresh > 0 && ++a->idleTicks >= a->cfg.refresh) {
                     a->idleTicks = 0;
                     startRefresh(a, ACT_REFRESH);
                 }
@@ -995,7 +1514,6 @@ static void mainLoop(struct App *a)
                 ULONG cls = im->Class;
                 UWORD code = im->Code;
                 struct Gadget *gad = (struct Gadget *)im->IAddress;
-                (void)code;
                 GT_ReplyIMsg(im);
 
                 switch (cls) {
@@ -1004,6 +1522,15 @@ static void mainLoop(struct App *a)
                     break;
                 case IDCMP_GADGETUP:
                     handleGadget(a, gad->GadgetID);
+                    break;
+                case IDCMP_MENUPICK:
+                    /* NextSelect is read BEFORE acting: Hide frees the menus */
+                    while (code != MENUNULL && a->win && a->menu && !a->quit) {
+                        struct MenuItem *it = ItemAddress(a->menu, code);
+                        if (!it) break;
+                        code = it->NextSelect;
+                        doMenu(a, (ULONG)GTMENUITEM_USERDATA(it));
+                    }
                     break;
                 case IDCMP_NEWSIZE:
                     a->resizePending = TRUE;
@@ -1025,43 +1552,12 @@ static void mainLoop(struct App *a)
 
 /* ------------------------------------------------------------------ */
 
-/* IFACE=<name> from CLI args or icon tooltypes */
-static void readArgs(struct App *a, int argc, char **argv)
-{
-    int i;
-    if (argc > 0) {
-        for (i = 1; i < argc; i++) {
-            if (strncmp(argv[i], "IFACE=", 6) == 0) {
-                strncpy(a->iface, argv[i] + 6, IFACEMAX);
-                a->iface[IFACEMAX] = 0;
-            }
-        }
-    } else if (IconBase) {
-        struct WBStartup *wbs = (struct WBStartup *)argv;
-        if (wbs && wbs->sm_NumArgs > 0) {
-            struct DiskObject *dob;
-            BPTR old = CurrentDir(wbs->sm_ArgList[0].wa_Lock);
-            dob = GetDiskObject((STRPTR)wbs->sm_ArgList[0].wa_Name);
-            if (dob) {
-                STRPTR v = FindToolType((CONST_STRPTR *)dob->do_ToolTypes,
-                                        (STRPTR)"IFACE");
-                if (v) {
-                    strncpy(a->iface, (char *)v, IFACEMAX);
-                    a->iface[IFACEMAX] = 0;
-                }
-                FreeDiskObject(dob);
-            }
-            CurrentDir(old);
-        }
-    }
-}
-
 int main(int argc, char **argv)
 {
     int rc = 20;
     memset(&app, 0, sizeof(app));
     initList(&app.lines);
-    strcpy(app.target, "8.8.8.8");
+    cfgDefaults(&app.cfg);
     strcpy(app.line1, "Status: checking...");
     strcpy(app.line2, "Iface:  ...");
     strcpy(app.msg,   "starting");
@@ -1074,14 +1570,19 @@ int main(int argc, char **argv)
     RexxSysBase   = (struct RxsLib *)OpenLibrary("rexxsyslib.library", 0);
     if (!IntuitionBase || !GfxBase || !GadToolsBase || !CxBase) goto done;
 
-    readArgs(&app, argc, argv);
+    readArgs(&app, argc, argv);          /* tooltypes / CLI over defaults  */
+    readPrefsFile(&app.cfg);             /* the settings file over those   */
+    cfgClamp(&app.cfg);
+    strcpy(app.iface, app.cfg.iface);
+    strcpy(app.target, app.cfg.target);
     detectIface(&app);
 
     if (!setupBroker(&app)) goto done;
     if (!setupTimer(&app))  goto done;   /* async polling needs the timer */
     setupRexx(&app);                     /* non-fatal: no port, still works */
 
-    openWin(&app);
+    if (app.cfg.popup) openWin(&app);
+    else startRefresh(&app, ACT_REFRESH);   /* keep ENV:RoadshowOnline current */
     mainLoop(&app);
     rc = 0;
 

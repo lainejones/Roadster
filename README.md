@@ -35,6 +35,53 @@ particular accelerator setup here, and grew into a full replacement.
 - **Commodity** — shows in Exchange, hotkey `ctrl alt r` toggles the window,
   the close gadget hides it (Exchange *Remove* or Ctrl-C quits).
 
+## Menus (v1.2)
+
+Hold the right mouse button over the window:
+
+| Menu | Item | Key | What it does |
+|---|---|---|---|
+| Project | About... | | name, version, what it is, licence |
+| | Hide | Amiga-H | closes the window; the commodity keeps running |
+| | Quit | Amiga-Q | quits Roadster |
+| Network | Online | Amiga-O | same as the Online button |
+| | Offline | Amiga-F | same as the Offline button |
+| | Full status | Amiga-S | same as the Status button |
+| | Ping / Trace | Amiga-P / Amiga-T | ping / traceroute the Target host |
+| | Clear output | Amiga-K | empties the output list |
+| Settings | Connection... | | interface, ping target, refresh interval |
+| | Commodity... | | hotkey, priority, open window at start |
+
+The Network items are ghosted while a command runs, like the buttons.
+Roadster has no update check, so there is no *Check for updates* item.
+
+## Settings
+
+Each Settings page has **Save** (writes `ENV:Roadster.prefs` and
+`ENVARC:Roadster.prefs`, kept across reboots), **Use** (`ENV:` only, until
+reboot), **Defaults** (fills in the built-in values) and **Cancel** (Esc).
+Changes take effect at once, no restart needed.
+
+| Page | Field | Key | Default | Controls |
+|---|---|---|---|---|
+| Connection | Interface | `IFACE` | *(empty)* | the Roadshow interface; empty = first file in `DEVS:NetInterfaces/` |
+| | Ping target | `TARGET` | `8.8.8.8` | host for Ping / Trace (the Target field starts with it) |
+| | Refresh (s) | `REFRESH` | `15` | status refresh while the window is open; `0` = off, else 5..3600 |
+| Commodity | Hotkey | `CX_POPKEY` | `ctrl alt r` | shows/hides the window (a bad description keeps the old hotkey) |
+| | Priority | `CX_PRIORITY` | `0` | commodity priority, -128..127 |
+| | Open window at start | `CX_POPUP` | `YES` | `NO` starts hidden (Exchange *Show* or the hotkey opens it) |
+
+The same keys work as **icon tooltypes** and as `KEY=value` **CLI
+arguments** (`Roadster IFACE=scsidayna "CX_POPKEY=ctrl alt n"`).
+Precedence, lowest first: built-in defaults, then tooltypes / CLI
+arguments, then the settings file (`ENV:` first, else `ENVARC:`). The file
+holds every key, so once you have saved from the Settings menu it wins
+over the tooltypes; delete `ENV:Roadster.prefs` and `ENVARC:Roadster.prefs`
+to go back to the tooltypes. The file is plain `KEY=value` lines.
+
+Pages are sized from the screen font and fit a 640x200 NTSC screen with
+Topaz 8.
+
 ## ARexx port `ROADSTER` (v1.1)
 
 Commands: `ONLINE`, `OFFLINE`, `SHOW`, `HIDE`, `STATUS` (returns the status
@@ -51,15 +98,16 @@ say result      /* e.g. "Status: ONLINE   IP 192.168.1.36" */
 
 ## Efficiency
 
-Built `-Os`, ~12 KB binary, no dynamic allocation in normal operation (the
+Built `-Os`, ~20 KB binary (12 KB before the 1.2 menus and settings pages), no dynamic allocation in normal operation (the
 listview is a fixed ring pool). The heartbeat timer only runs while a command
 is in flight or the window is open - a hidden idle commodity sleeps completely.
 
 ## Interface selection
 
 The interface name is auto-detected as the first file in
-`DEVS:NetInterfaces/`. Override with `IFACE=<name>` — as a CLI argument or
-an icon tooltype. Works with any Roadshow interface type (Ethernet, SLIP…).
+`DEVS:NetInterfaces/`. Override with `IFACE=<name>` — as a CLI argument, an
+icon tooltype or on the Settings > Connection page. Works with any Roadshow
+interface type (Ethernet, SLIP…).
 
 ## Install
 
@@ -84,7 +132,8 @@ hunk relocs on this toolchain.
 
 ## Files
 
-- `src/roadster.c` — the whole program
+- `src/roadster.c` — the program
+- `src/amigui.c`, `src/amigui.h` — shared About box / settings-page / ENV: helpers
 - `build.sh` — WSL build script
 - `tools/mkpkg.py` — stages the release layout in `out/release/`
 - `icons/` — `Roadster.info` (the program's GlowIcon) and `Roadster-drawer.info`

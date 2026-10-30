@@ -12,7 +12,7 @@ mkdir -p out
 echo "== Roadster (release) =="
 # Strip at LINK time with -s. NEVER m68k-amigaos-strip: it corrupts the hunk
 # reloc table on this toolchain -> guru 8000000B. See toolchain memory.
-$CC $CFLAGS -s -o out/Roadster src/roadster.c
+$CC $CFLAGS -s -o out/Roadster src/roadster.c src/amigui.c
 
 ls -l out
 echo "Done."
