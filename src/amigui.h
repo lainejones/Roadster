@@ -31,6 +31,12 @@ int amg_env_write(const char *name, const void *data, ULONG len, int keep);
  * size-1 bytes). Returns the length, or -1 if neither is there. */
 LONG amg_env_read(const char *name, char *buf, LONG size);
 
+/* Set one KEY=value line in a KEY=value settings file - in ENV:<name> and
+ * ENVARC:<name> each, every other line left as it is there (value NULL:
+ * remove the line). For Snapshot window: it saves the window's place without
+ * turning settings that were only Used into saved ones. 1 = written. */
+int amg_env_setkey(const char *name, const char *key, const char *value);
+
 /* ---- a settings page -------------------------------------------------------- */
 
 #define AMG_MAXGAD 64

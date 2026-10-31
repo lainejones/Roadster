@@ -96,6 +96,63 @@ LONG amg_env_read(const char *name, char *buf, LONG size)
     return -1;
 }
 
+/* One file: drop every KEY= line, add KEY=value at the end. */
+static int setkey_one(const char *dir, const char *name, const char *key, const char *value)
+{
+    static char in[4096], out[4200];
+    char path[256], *line, *next;
+    BPTR fh;
+    LONG n = 0;
+    int kl = strlen(key), o = 0, ok;
+    strncpy(path, dir, sizeof(path) - 1);
+    path[sizeof(path) - 1] = 0;
+    strncat(path, name, sizeof(path) - strlen(path) - 1);
+    if ((fh = Open((STRPTR)path, MODE_OLDFILE)) != 0) {
+        n = Read(fh, in, sizeof(in) - 1);
+        Close(fh);
+        if (n < 0)
+            n = 0;
+    }
+    in[n] = 0;
+    for (line = in; *line; line = next) {
+        int ll;
+        next = strchr(line, '\n');
+        ll = next ? (int)(next - line) + 1 : (int)strlen(line);
+        if (next)
+            next++;
+        else
+            next = line + ll;
+        if (!strncmp(line, key, kl) && line[kl] == '=')
+            continue;
+        if (o + ll < (int)sizeof(out) - 300) {
+            memcpy(out + o, line, ll);
+            o += ll;
+            if (out[o - 1] != '\n')
+                out[o++] = '\n';
+        }
+    }
+    if (value && o + kl + (int)strlen(value) + 2 < (int)sizeof(out)) {
+        strcpy(out + o, key);
+        o += kl;
+        out[o++] = '=';
+        strcpy(out + o, value);
+        o += strlen(value);
+        out[o++] = '\n';
+    }
+    make_dirs(path);
+    if (!(fh = Open((STRPTR)path, MODE_NEWFILE)))
+        return 0;
+    ok = Write(fh, out, o) == o;
+    Close(fh);
+    return ok;
+}
+
+int amg_env_setkey(const char *name, const char *key, const char *value)
+{
+    int ok = setkey_one("ENV:", name, key, value);
+    return setkey_one("ENVARC:", name, key, value) && ok;
+}
+
 /* ---- a settings page -------------------------------------------------------- */
 
 int amg_tlen(AmgPage *pg, const char *s)
