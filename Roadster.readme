@@ -2,7 +2,7 @@ Short:        Roadshow on/off switch + status panel
 Author:       Laine Jones (with Claude)
 Uploader:     laine jones gmail com
 Type:         comm/net
-Version:      1.1.2
+Version:      1.1.3
 Requires:     Kickstart 2.0+; Roadshow TCP/IP stack
 Architecture: m68k-amigaos >= 2.0.4
 
@@ -44,7 +44,10 @@ FEATURES
 
 INSTALL
 
-Copy the drawer anywhere (SYS:Roadster is typical) and double-click.
+Open the Roadster drawer and double-click Install_Roadster. It asks
+where the Roadster drawer should go (default SYS:) and copies it there;
+run it again to update, your settings are kept. Or copy the drawer
+anywhere by hand (SYS:Roadster is typical) and double-click Roadster.
 The interface name is auto-detected from DEVS:NetInterfaces/ - override
 with an IFACE=<name> tooltype or CLI argument, or on the Settings >
 Connection page, if you have several.

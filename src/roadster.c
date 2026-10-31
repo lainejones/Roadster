@@ -85,7 +85,7 @@
 
 #include "amigui.h"
 
-#define ROADSTER_VERSION "1.1.2"
+#define ROADSTER_VERSION "1.1.3"
 #define ROADSTER_DATE    "30.10.2026"
 #define ROADSTER_ABOUT   "A Commodity that switches a Roadshow TCP/IP\n" \
                          "interface on and off, with status, ping and trace.\n\n" \

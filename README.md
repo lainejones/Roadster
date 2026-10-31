@@ -112,21 +112,32 @@ interface type (Ethernet, SLIP…).
 ## Install
 
 The release archive holds `Roadster.readme` and a `Roadster` drawer
-(`Roadster`, `Roadster.info` and `LICENSE`), with `Roadster.info` beside the drawer so it
-shows on Workbench. Needs Kickstart 2.0+ and Roadshow.
+(`Roadster`, `Roadster.info`, `Install_Roadster` with its icon, and `LICENSE`), with a
+plain drawer icon `Roadster.info` beside the drawer so it shows on Workbench. Needs
+Kickstart 2.0+ and Roadshow.
 
-Copy the drawer anywhere (`SYS:Roadster` is typical) and double-click
-`Roadster`. The interface name is auto-detected from `DEVS:NetInterfaces/` -
-override with an `IFACE=<name>` tooltype or CLI argument if you have several.
+Unpack the archive anywhere (`LhA x Roadster-1.1.3.lha RAM:`), open the Roadster drawer and
+double-click **Install_Roadster**. It asks where the Roadster drawer should go (default
+`SYS:`, so it becomes `SYS:Roadster`), copies Roadster, its icon, `Roadster.readme` and
+`LICENSE` there, and gives the new drawer your Workbench's own drawer icon. Run it again to
+update: your settings (`ENVARC:Roadster.prefs`) are kept, and so is the `Roadster.info`
+already there, with any tooltypes you gave it. Quit a running Roadster before you start
+the new one.
+
+Roadster also runs straight from the unpacked drawer, or copy the drawer anywhere by hand
+and double-click `Roadster`. The interface name is auto-detected from
+`DEVS:NetInterfaces/` - override with an `IFACE=<name>` tooltype or CLI argument if you
+have several.
 
 Use the **`.lha`**: a `.zip` can't carry AmigaDOS protection bits, so after
-unpacking a `.zip` run `protect Roadster +e` in the drawer.
+unpacking a `.zip` run `protect Roadster +e` in the drawer (the installer sets it on the
+copy it installs).
 
 ## Building
 
 `./build.sh` under WSL with the amiga-gcc (bebbo) toolchain on PATH. Then
 `python3 tools/mkpkg.py` stages the release in `out/release/` (readme,
-drawer, both icons, licence).
+drawer, icons, installer, licence).
 Strip at link time (`gcc -s`); the standalone `m68k-amigaos-strip` corrupts
 hunk relocs on this toolchain.
 
@@ -136,8 +147,11 @@ hunk relocs on this toolchain.
 - `src/amigui.c`, `src/amigui.h` — shared About box / settings-page / ENV: helpers
 - `build.sh` — WSL build script
 - `tools/mkpkg.py` — stages the release layout in `out/release/`
-- `icons/` — `Roadster.info` (the program's GlowIcon) and `Roadster-drawer.info`
-  (the drawer icon, shipped as `Roadster.info` beside the drawer)
+- `Install_Roadster` — the Installer script shipped in the drawer
+- `icons/` — `Roadster.info` (the program's GlowIcon), `Roadster-drawer.info`
+  (a plain blue drawer from `../tools/makeicon_drawer32.py`, shipped as `Roadster.info`
+  beside the drawer) and `Install_Roadster.info` (the installer's icon: default tool
+  `Installer`, tooltypes `APPNAME=Roadster` and `DEFUSER=AVERAGE`)
 - `Roadster-1.1.lha` / `Roadster.readme` — the 1.1 release archive (built with LhA
   on a real Amiga) and its Aminet-style readme
 - `docs/` — screenshots; the GlowIcon ships inside the archive

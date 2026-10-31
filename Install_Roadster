@@ -1,0 +1,56 @@
+; -------------------------------------------------------------------------
+; Roadster - Installer script
+; Copies Roadster, its icon, the readme and the licence into a drawer of
+; your choice. Run it again to update; your settings (ENVARC:Roadster.prefs)
+; are kept, and so is an icon already there (it may carry your tooltypes).
+; -------------------------------------------------------------------------
+(set @app-name "Roadster")
+(complete 0)
+
+(if (not (exists "Roadster"))
+    (abort "Can't find the Roadster files next to this script.\n\n"
+           "Run the installer from the drawer it came in."))
+
+(message "Roadster 1.1.3 - switches Roadshow on and off\n\n"
+         "Roadster is a Commodity that takes a Roadshow network interface offline "
+         "and back online, shows whether it is up and its address, and runs Ping "
+         "and TraceRoute. It needs the Roadshow TCP/IP stack.")
+
+(set target
+    (askdir (prompt "Where should the Roadster drawer go?")
+            (help "A drawer called Roadster is made here (or updated, if it is "
+                  "already there). It holds the program, the readme and the licence.")
+            (default "SYS:")))
+(set target (tackon target "Roadster"))
+(complete 20)
+
+; the drawer gets this Workbench's own drawer icon (ENV:Sys/def_drawer.info)
+(if (not (exists target (noreq))) (makedir target (infos)))
+
+(copyfiles (prompt "Copying Roadster")
+           (help @copyfiles-help)
+           (source "Roadster")
+           (dest target))
+(run (cat "Protect >NIL: \"" (tackon target "Roadster") "\" +rwed"))
+; a new install gets the icon; an update keeps the one there, with its tooltypes
+(if (not (exists (tackon target "Roadster.info") (noreq)))
+    (copyfiles (source "Roadster.info") (dest target) (nogauge)))
+(if (exists "/Roadster.readme" (noreq))
+    (copyfiles (source "/Roadster.readme") (dest target) (nogauge)))
+(copyfiles (source "LICENSE") (dest target) (nogauge))
+(complete 90)
+
+; the package drawer came with a plain drawer icon so it shows when unpacked;
+; from now on it has this Workbench's own (ENV:Sys/def_drawer.info). Not at a
+; disk root: a disk root has no drawer icon, and it may be locked.
+(set pkgdir (expandpath ""))
+(if (and (exists "ENV:Sys/def_drawer.info" (noreq))
+         (<> (substr pkgdir (- (strlen pkgdir) 1) 1) ":"))
+    (if (exists (cat pkgdir ".info") (noreq))
+        (run (cat "Copy >NIL: ENV:Sys/def_drawer.info \"" pkgdir ".info\""))))
+(complete 100)
+
+(message "Roadster 1.1.3 is installed in " target ".\n\n"
+         "Double-click its icon to start it. If an older Roadster is running, "
+         "quit it first (Project > Quit) and start the new one.")
+(exit (quiet))

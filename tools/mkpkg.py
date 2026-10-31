@@ -5,9 +5,11 @@
     python3 tools/mkpkg.py
 
 Produces out/release/ with Roadster.readme, the Roadster drawer
-(Roadster + its tool icon + LICENSE) and Roadster.info (the drawer icon) beside the
-drawer, so the drawer shows on Workbench. Archive it with LhA to keep the
-protection bits.
+(Roadster + its tool icon, Install_Roadster + its icon, LICENSE) and
+Roadster.info (the plain drawer icon) beside the drawer, so the drawer shows
+on Workbench; the installer swaps it for the system's own drawer icon. No
+other drawer icons. Archive it with LhA to keep the protection bits
+(Roadster needs +e).
 """
 import os
 import shutil
@@ -21,6 +23,8 @@ FILES = [
     ("Roadster.readme",            "Roadster.readme"),
     ("out/Roadster",               "Roadster/Roadster"),
     ("icons/Roadster.info",        "Roadster/Roadster.info"),
+    ("Install_Roadster",           "Roadster/Install_Roadster"),
+    ("icons/Install_Roadster.info", "Roadster/Install_Roadster.info"),
     ("LICENSE",                    "Roadster/LICENSE"),
     ("icons/Roadster-drawer.info", "Roadster.info"),
 ]
