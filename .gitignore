@@ -6,3 +6,6 @@ out/
 *~
 .DS_Store
 Thumbs.db
+
+# release archives go on the release pages, not in the tree
+*.lha
